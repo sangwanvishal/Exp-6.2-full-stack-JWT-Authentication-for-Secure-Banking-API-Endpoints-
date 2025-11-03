@@ -1,0 +1,95 @@
+const express = require('express');
+const jwt = require('jsonwebtoken');
+const app = express();
+const PORT = 3000;
+app.use(express.json());
+const JWT_SECRET = 'your-secret-key-here';
+let userBalance = 1000;
+const users = {
+'user1': 'password123'
+};
+const authMiddleware = (req, res, next) => {
+const authHeader = req.headers.authorization;
+if (!authHeader) {
+return res.status(403).json({
+message: "Invalid or expired token"
+});
+}
+const token = authHeader.split(' ')[1];
+try {
+const decoded = jwt.verify(token, JWT_SECRET);
+req.user = decoded;
+next();
+} catch (error) {
+return res.status(403).json({
+message: "Invalid or expired token"
+});
+}
+};
+app.use((req, res, next) => {
+res.header('Access-Control-Allow-Origin', '*');
+res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+next();
+});
+app.post('/login', (req, res) => {
+const { username, password } = req.body;
+if (users[username] && users[username] === password) {
+const token = jwt.sign(
+{ username: username },
+JWT_SECRET,
+{ expiresIn: '1h' }
+);
+res.json({
+token: token
+});
+} else {
+res.status(401).json({
+message: "Invalid credentials"
+});
+}
+});
+app.get('/balance', authMiddleware, (req, res) => {
+res.json({
+balance: userBalance
+});
+});
+app.post('/deposit', authMiddleware, (req, res) => {
+const { amount } = req.body;
+if (!amount || amount <= 0) {
+return res.status(400).json({
+message: "Invalid amount"
+});
+}
+userBalance += amount;
+res.json({
+message: `Deposited $${amount}`,
+newBalance: userBalance
+});
+});
+app.post('/withdraw', authMiddleware, (req, res) => {
+const { amount } = req.body;
+if (!amount || amount <= 0) {
+return res.status(400).json({
+message: "Invalid amount"
+});
+}
+if (amount > userBalance) {
+return res.status(400).json({
+message: "Insufficient balance"
+});
+}
+userBalance -= amount;
+res.json({
+message: `Withdrew $${amount}`,
+newBalance: userBalance
+});
+});
+app.listen(PORT, () => {
+console.log(`✅ Banking API running on http://localhost:${PORT}`);
+console.log(`📝 Available endpoints:`);
+console.log(`   POST http://localhost:${PORT}/login`);
+console.log(`   GET  http://localhost:${PORT}/balance (Protected)`);
+console.log(`   POST http://localhost:${PORT}/deposit (Protected)`);
+console.log(`   POST http://localhost:${PORT}/withdraw (Protected)`);
+console.log(`\n🔐 Test Credentials: username: "user1", password: "password123"`);
+});
